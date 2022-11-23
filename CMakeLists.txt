@@ -28,7 +28,7 @@ unset(MIN_CUDA_VER)
 
 # --- code that needs triggering within project, or after enable. 
 # If the user did not provide any architectures, set it to a default, which is CMake and CUDA version specific
-if(NOT arch_from_user)
+if(NOT arch_from_user OR CMAKE_CUDA_ARCHITECTURES STREQUAL "")
     set(default_archs "35;50;60;70;80")
     if(CMAKE_CUDA_COMPILER_VERISON VERSION_GREATER_EQUAL 11.8.0)
         list(APPEND "90")
