@@ -23,6 +23,9 @@ add_library(${PROJECT_NAME} STATIC ${SRC})
 
 unset(SRC)
 
+# Get the oldest arch, to set as a compiler defintiion
+ccad_get_oldest_arch()
+
 target_include_directories(${PROJECT_NAME} PUBLIC "${ROOT}/include")
 target_include_directories(${PROJECT_NAME} PRIVATE "${ROOT}/src")
 set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)

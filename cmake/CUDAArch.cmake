@@ -15,10 +15,11 @@ function(ccad_apply)
     # message("apply ${arch_from_env_or_cache}")
 
     # @todo - setting the languge to CUDA sets the dfefault, but doesn't validate the user provided a sane option otherwise. We should validate that here rather than waiting till the first all to nvcc, and optionally set it to the default? (probably not)
+    # CMake 3.24 doesnt' vlaidate all/all-major properpyl, so if its one of the 3 knwon versions we should block it being a list too.
 
     # If the user did not provide any architectures, set it to a default, which is CMake and CUDA version specific
     if(arch_from_env_or_cache AND NOT CMAKE_CUDA_ARCHITECTURES STREQUAL "")#
-        message(STATUS "early exit")
+        # message(STATUS "early exit")
         return()
     endif()
 
@@ -46,6 +47,33 @@ function(ccad_apply)
         #unset local vars
         unset(default_archs)
     endif()
+endfunction()
+
+function(ccad_get_oldest_arch)
+    # assuming CMAKE_CUDA_ARCHITECTURES is set, extract the oldest architecture from it? - This is not required, but provides much more helpful error messages (for downstream users). It might not be possible with all-major, all & native.
+
+    if(DEFINED CMAKE_CUDA_ARCHITECTURES)
+        # If the list contains all, all-major or native, do something.
+        if("native" IN_LIST CMAKE_CUDA_ARCHITECTURES)
+            message("@todo handle oldest arch from native")
+        elseif("all-major" IN_LIST CMAKE_CUDA_ARCHITECTURES OR "all" IN_LIST CMAKE_CUDA_ARCHITECTURES)
+            message("@todo handle oldest arch from all/all-major")
+        else()
+            # Otherwise it should just be a list of one or more <sm>/<sm>-real/<sm-virtual>
+            # Copy the list
+            set(archs ${CMAKE_CUDA_ARCHITECTURES})
+            # Replace occurances of -real and -virtual
+            list(TRANSFORM archs REPLACE "(\-real|\-virtual)" "")
+            # Sort the list numerically (natural option
+            list(SORT archs COMPARE NATURAL ORDER ASCENDING)
+            # Get the first element
+            list(GET archs 0 lowest)
+            message("@todo - ccad_get_oldest_arch return lowest ${lowest}")
+        endif()
+    else()
+        message(FATAL_ERROR "ccad_get_oldest_arch is not set / is empty")
+    endif()
+
 endfunction()
 
 function(ccad_test)
