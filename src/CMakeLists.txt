@@ -23,8 +23,11 @@ add_library(${PROJECT_NAME} STATIC ${SRC})
 
 unset(SRC)
 
-# Get the oldest arch, to set as a compiler defintiion
-ccad_get_oldest_arch()
+# Get the oldest arch, written to ${ccad_minimum_cuda_architecture}
+ccad_get_minimum_cuda_architecture()
+# Add the minimum cuda architecture as a compiler definition.
+target_compile_definitions(${PROJECT_NAME} PRIVATE -DCCAD_MIN_CUDA_ARCH=${ccad_minimum_cuda_architecture})
+message("oldest arch: ${ccad_minimum_cuda_architecture}")
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${ROOT}/include")
 target_include_directories(${PROJECT_NAME} PRIVATE "${ROOT}/src")

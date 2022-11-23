@@ -49,7 +49,7 @@ function(ccad_apply)
     endif()
 endfunction()
 
-function(ccad_get_oldest_arch)
+function(ccad_get_minimum_cuda_architecture)
     # assuming CMAKE_CUDA_ARCHITECTURES is set, extract the oldest architecture from it? - This is not required, but provides much more helpful error messages (for downstream users). It might not be possible with all-major, all & native.
 
     if(DEFINED CMAKE_CUDA_ARCHITECTURES)
@@ -68,10 +68,12 @@ function(ccad_get_oldest_arch)
             list(SORT archs COMPARE NATURAL ORDER ASCENDING)
             # Get the first element
             list(GET archs 0 lowest)
-            message("@todo - ccad_get_oldest_arch return lowest ${lowest}")
+            # Set the lowest arch to a parent scoped cache variable which can be accessed externally. 
+            # @todo - use an argument instead, so users can put it where they want? 
+            set(ccad_minimum_cuda_architecture ${lowest} PARENT_SCOPE)
         endif()
     else()
-        message(FATAL_ERROR "ccad_get_oldest_arch is not set / is empty")
+        message(FATAL_ERROR "ccad_get_minimum_cuda_architecture: CMAKE_CUDA_ARCHITECTURES is not set / is empty")
     endif()
 
 endfunction()
