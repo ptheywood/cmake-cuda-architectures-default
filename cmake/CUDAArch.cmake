@@ -14,6 +14,8 @@ endfunction()
 function(ccad_apply)
     # message("apply ${arch_from_env_or_cache}")
 
+    # @todo - setting the languge to CUDA sets the dfefault, but doesn't validate the user provided a sane option otherwise. We should validate that here rather than waiting till the first all to nvcc, and optionally set it to the default? (probably not)
+
     # If the user did not provide any architectures, set it to a default, which is CMake and CUDA version specific
     if(arch_from_env_or_cache AND NOT CMAKE_CUDA_ARCHITECTURES STREQUAL "")#
         message(STATUS "early exit")
