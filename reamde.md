@@ -54,7 +54,7 @@ cmake -S . -B build
 Specifying SM 60 and SM 70 via the CLI should override this
 
 ```bash
-cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURE="60;70"
+cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES="60;70"
 # should output 60;70
 ```
 
@@ -66,6 +66,15 @@ CUDAARCHS="61" cmake -S . -B build
 ```
 
 ```bash
-CUDAARCHS="61" cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURE="60;70"
+CUDAARCHS="61" cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES="60;70"
 # should output 60;70
+```
+
+If a user has previsouly set a value, but wants to return the default, they should be able to do this via `-UCMAKE_CUDA_ARCHITECTURES` or `-DCMAKE_CUDA_ARCHITECTURES=""`
+
+```bash
+cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES="60;70"
+# should output 60;70
+cmake -S . -B build -UCMAKE_CUDA_ARCHITECTURES
+# should have output the longer default
 ```
