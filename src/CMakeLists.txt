@@ -27,7 +27,7 @@ unset(SRC)
 ccad_get_minimum_cuda_architecture()
 # Add the minimum cuda architecture as a compiler definition.
 target_compile_definitions(${PROJECT_NAME} PRIVATE -DCCAD_MIN_CUDA_ARCH=${ccad_minimum_cuda_architecture})
-message("oldest arch: ${ccad_minimum_cuda_architecture}")
+message(STATUS "ccad_minimum_cuda_architecture: ${ccad_minimum_cuda_architecture}")
 
 target_include_directories(${PROJECT_NAME} PUBLIC "${ROOT}/include")
 target_include_directories(${PROJECT_NAME} PRIVATE "${ROOT}/src")
