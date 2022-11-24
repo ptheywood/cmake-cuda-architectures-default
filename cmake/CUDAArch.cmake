@@ -11,15 +11,92 @@ function(ccad_record)
     set(arch_from_env_or_cache ${arch_from_env_or_cache} PARENT_SCOPE)
 endfunction()
 
+# @todo - make validation default but optional
 function(ccad_apply)
     # message("apply ${arch_from_env_or_cache}")
 
     # @todo - setting the languge to CUDA sets the dfefault, but doesn't validate the user provided a sane option otherwise. We should validate that here rather than waiting till the first all to nvcc, and optionally set it to the default? (probably not)
     # CMake 3.24 doesnt' vlaidate all/all-major properpyl, so if its one of the 3 knwon versions we should block it being a list too.
 
-    # If the user did not provide any architectures, set it to a default, which is CMake and CUDA version specific
-    if(arch_from_env_or_cache AND NOT CMAKE_CUDA_ARCHITECTURES STREQUAL "")#
-        # message(STATUS "early exit")
+    # If we already have a cuda architetures value, validate it as CMake doesn't.
+    if(arch_from_env_or_cache AND NOT CMAKE_CUDA_ARCHITECTURES STREQUAL "")
+        # Get the number or architectures specified
+        list(LENGTH CMAKE_CUDA_ARCHITECTURES arch_count)
+        # native requires CMake >= 3.24, and must be the only option.
+        if("native" IN_LIST CMAKE_CUDA_ARCHITECTURES)
+            # Error if CMake is too old
+            if(CMAKE_VERSION VERSION_LESS 3.24)
+                message(FATAL_ERROR
+                    " CMAKE_CUDA_ARCHITECTURES value `native` requires CMake >= 3.24.\n"
+                    " CMAKE_CUDA_ARCHITECTURES=\"${CMAKE_CUDA_ARCHITECTURES}\"")
+            endif()
+            # Error if there are multiple architectures specified.
+            if(arch_count GREATER 1)
+                message(FATAL_ERROR
+                    " CMAKE_CUDA_ARCHITECTURES value `native` must be the only value specified.\n"
+                    " CMAKE_CUDA_ARCHITECTURES=\"${CMAKE_CUDA_ARCHITECTURES}\"")
+            endif()
+        endif()
+        # all requires 3.23, and must be the sole value.
+        if("all" IN_LIST CMAKE_CUDA_ARCHITECTURES)
+            # Error if CMake is too old
+            if(CMAKE_VERSION VERSION_LESS 3.23)
+                message(FATAL_ERROR
+                    " CMAKE_CUDA_ARCHITECTURES value `all` requires CMake >= 3.23.\n"
+                    " CMAKE_CUDA_ARCHITECTURES=\"${CMAKE_CUDA_ARCHITECTURES}\"")
+            endif()
+            # Error if there are multiple architectures specified.
+            if(arch_count GREATER 1)
+                message(FATAL_ERROR
+                    " CMAKE_CUDA_ARCHITECTURES value `all` must be the only value specified.\n"
+                    " CMAKE_CUDA_ARCHITECTURES=\"${CMAKE_CUDA_ARCHITECTURES}\"")
+            endif()
+        endif()
+        # all-major requires 3.23, and must be the sole value.
+        if("all-major" IN_LIST CMAKE_CUDA_ARCHITECTURES)
+            # Error if CMake is too old
+            if(CMAKE_VERSION VERSION_LESS 3.23)
+                message(FATAL_ERROR
+                    " CMAKE_CUDA_ARCHITECTURES value `all-major` requires CMake >= 3.23.\n"
+                    " CMAKE_CUDA_ARCHITECTURES=\"${CMAKE_CUDA_ARCHITECTURES}\"")
+            endif()
+            # Error if there are multiple architectures specified.
+            if(arch_count GREATER 1)
+                message(FATAL_ERROR
+                    " CMAKE_CUDA_ARCHITECTURES value `all-major` must be the only value specified.\n"
+                    " CMAKE_CUDA_ARCHITECTURES=\"${CMAKE_CUDA_ARCHITECTURES}\"")
+            endif()
+        endif()
+
+        # Cmake 3.18+ expects a list of 1 or more <sm>, <sm>-real or <sm>-virtual.
+        # CMake isn't aware of the exact SMS supported by the CUDA version afiak, but we can query nvcc --help and extract the output. Only query this once.
+        if(NOT DEFINED SUPPORTED_CUDA_ARCHITECTURES_NVCC)
+            execute_process(COMMAND ${CMAKE_CUDA_COMPILER} "--help" OUTPUT_VARIABLE NVCC_HELP_STR ERROR_VARIABLE NVCC_HELP_STR)
+            # Match all comptue_XX or sm_XXs
+            string(REGEX MATCHALL "'(sm|compute)_[0-9]+'" SUPPORTED_CUDA_ARCHITECTURES_NVCC "${NVCC_HELP_STR}" )
+            # Strip just the numeric component
+            string(REGEX REPLACE "'(sm|compute)_([0-9]+)'" "\\2" SUPPORTED_CUDA_ARCHITECTURES_NVCC "${SUPPORTED_CUDA_ARCHITECTURES_NVCC}" )
+            # Remove dupes and sort to build the correct list of supported CUDA_ARCH.
+            list(REMOVE_DUPLICATES SUPPORTED_CUDA_ARCHITECTURES_NVCC)
+            list(REMOVE_ITEM SUPPORTED_CUDA_ARCHITECTURES_NVCC "")
+            list(SORT SUPPORTED_CUDA_ARCHITECTURES_NVCC)
+            # Store the supported arch's once and only once. This could be a cache  var given the cuda compiler should not be able to change without clearing th cache?
+            set(SUPPORTED_CUDA_ARCHITECTURES_NVCC ${SUPPORTED_CUDA_ARCHITECTURES_NVCC} PARENT_SCOPE)
+        endif()
+        # Iterate the options, checking each is allowed based on the nvcc help output, erroring if not.
+        # First transform the list removing -real/-virtual, to simplify logic within the loop.
+        set(archs ${CMAKE_CUDA_ARCHITECTURES})
+        list(TRANSFORM archs REPLACE "(\-real|\-virtual)" "")
+        foreach(ARCH IN LISTS archs)
+            if(NOT ARCH IN_LIST SUPPORTED_CUDA_ARCHITECTURES_NVCC)
+                message(FATAL_ERROR
+                    " CMAKE_CUDA_ARCHITECTURES value `${ARCH}` is not supported by nvcc ${CMAKE_CUDA_COMPILER_VERSION}.\n"
+                    " Supported architectures based on nvcc --help: \n"
+                    "   ${SUPPORTED_CUDA_ARCHITECTURES_NVCC}\n")
+            endif()
+        endforeach()
+        unset(archs)
+        # If no errors yet, we're good to go.
         return()
     endif()
 
@@ -55,9 +132,9 @@ function(ccad_get_minimum_cuda_architecture)
     if(DEFINED CMAKE_CUDA_ARCHITECTURES)
         # If the list contains all, all-major or native, do something.
         if("native" IN_LIST CMAKE_CUDA_ARCHITECTURES)
-            message("@todo handle oldest arch from native")
+            message("@todo handle oldest arch from native ${CMAKE_CUDA_ARCHITECTURES}")
         elseif("all-major" IN_LIST CMAKE_CUDA_ARCHITECTURES OR "all" IN_LIST CMAKE_CUDA_ARCHITECTURES)
-            message("@todo handle oldest arch from all/all-major")
+            message("@todo handle oldest arch from all/all-major ${CMAKE_CUDA_ARCHITECTURES}")
         else()
             # Otherwise it should just be a list of one or more <sm>/<sm>-real/<sm-virtual>
             # Copy the list
@@ -68,8 +145,8 @@ function(ccad_get_minimum_cuda_architecture)
             list(SORT archs COMPARE NATURAL ORDER ASCENDING)
             # Get the first element
             list(GET archs 0 lowest)
-            # Set the lowest arch to a parent scoped cache variable which can be accessed externally. 
-            # @todo - use an argument instead, so users can put it where they want? 
+            # Set the lowest arch to a parent scoped cache variable which can be accessed externally.
+            # @todo - use an argument instead, so users can put it where they want?
             set(ccad_minimum_cuda_architecture ${lowest} PARENT_SCOPE)
         endif()
     else()
