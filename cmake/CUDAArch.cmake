@@ -30,6 +30,15 @@ endfunction()
 
 # @todo - make validation default but optional
 function(ccad_apply)
+    # This function requires that the CUDA language is enabled on the current project. 
+    if(NOT CMAKE_CUDA_COMPILER_LOADED)
+        # @todo different error if called manually or by injected cmake? 
+        message(FATAL_ERROR
+            "  ccad_apply only works if CUDA is an enabled language on the current project\n"
+            "  Please use project(...LANGUAGES CUDA), or enabled_language(CUDA)")
+    endif()
+
+
     find_package(CUDAToolkit REQUIRED)
     # Query NVCC for the acceptable SM values, this is used in multiple places
     if(NOT DEFINED SUPPORTED_CUDA_ARCHITECTURES_NVCC)
@@ -215,6 +224,7 @@ function(ccad_get_minimum_cuda_architecture)
     else()
         message(FATAL_ERROR "ccad_get_minimum_cuda_architecture: CMAKE_CUDA_ARCHITECTURES is not set / is empty")
     endif()
+
 endfunction()
 
 function(ccad_test)

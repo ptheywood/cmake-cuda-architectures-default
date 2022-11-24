@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.18...3.25 FATAL_ERROR)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/CUDAArch.cmake)
 
 ccad_record()
+# ccad_record_and_inject(CCAD) # Ths will fail, as the project must enable CUDA.
 
 project(CCAD LANGUAGES NONE)
 
