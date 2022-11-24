@@ -6,7 +6,6 @@ function(ccad_record)
     if(DEFINED CMAKE_CUDA_ARCHITECTURES OR DEFINED ENV{CUDAARCHS})
         set(arch_from_env_or_cache TRUE)
     endif()
-    # message(STATUS "recorded arch from user? ${arch_from_env_or_cache}")
     # promote the stored value to parent(file) scope for later use. This might need to become internal cache, but hopefully not.
     set(arch_from_env_or_cache ${arch_from_env_or_cache} PARENT_SCOPE)
 endfunction()
@@ -170,9 +169,15 @@ function(ccad_get_minimum_cuda_architecture)
                 # Store the supported arch's once and only once. This could be a cache  var given the cuda compiler should not be able to change without clearing th cache?
                 set(SUPPORTED_CUDA_ARCHITECTURES_NVCC ${SUPPORTED_CUDA_ARCHITECTURES_NVCC} PARENT_SCOPE)
             endif()
-            # For both all and all-major, the lowest arch should be the lowest supported. This is true for CUDA <= 11.8 atleast.
-            list(GET SUPPORTED_CUDA_ARCHITECTURES_NVCC 0 lowest)
-            set(ccad_minimum_cuda_architecture ${lowest})
+            list(LENGTH SUPPORTED_CUDA_ARCHITECTURES_NVCC SUPPORTED_CUDA_ARCHITECTURES_NVCC_COUNT)
+            if(SUPPORTED_CUDA_ARCHITECTURES_NVCC_COUNT GREATER 0)
+                # For both all and all-major, the lowest arch should be the lowest supported. This is true for CUDA <= 11.8 atleast.
+                list(GET SUPPORTED_CUDA_ARCHITECTURES_NVCC 0 lowest)
+                set(ccad_minimum_cuda_architecture ${lowest})
+            else()
+                # If nvcc didn't give anything useful, set -1.
+                set(ccad_minimum_cuda_architecture -1)
+            endif()
         else()
             # Otherwise it should just be a list of one or more <sm>/<sm>-real/<sm-virtual>
             # Copy the list
