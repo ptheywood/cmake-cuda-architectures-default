@@ -10,6 +10,24 @@ function(ccad_record)
     set(arch_from_env_or_cache ${arch_from_env_or_cache} PARENT_SCOPE)
 endfunction()
 
+
+function(ccad_record_and_inject project_name)
+# @todo project from argument as optional and combine with the above? 
+
+    # Detect if there are user provided architectures or not, form the cache or environment
+    set(arch_from_env_or_cache FALSE)
+    if(DEFINED CMAKE_CUDA_ARCHITECTURES OR DEFINED ENV{CUDAARCHS})
+        set(arch_from_env_or_cache TRUE)
+    endif()
+    # promote the stored value to parent(file) scope for later use. This might need to become internal cache, but hopefully not.
+    set(arch_from_env_or_cache ${arch_from_env_or_cache} PARENT_SCOPE)
+
+    # Inject code into the project() comamnd for hte specified project, to run after CUDA has been detected (so we can set teh defaults correctly)
+    # Append 
+    set(CMAKE_PROJECT_${project_name}_INCLUDE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/CUDAArch_callback.cmake" PARENT_SCOPE)
+
+endfunction()
+
 # @todo - make validation default but optional
 function(ccad_apply)
     find_package(CUDAToolkit REQUIRED)

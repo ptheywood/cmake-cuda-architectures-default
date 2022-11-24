@@ -2,11 +2,9 @@ cmake_minimum_required(VERSION 3.18...3.25 FATAL_ERROR)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../cmake/CUDAArch.cmake)
 
-ccad_record()
+ccad_record_and_inject(ccad)
 
 project(ccad CUDA)
-
-ccad_apply()
 
 ccad_test()
 

@@ -2,11 +2,9 @@ cmake_minimum_required(VERSION 3.18...3.25 FATAL_ERROR)
 
 include(${CMAKE_CURRENT_LIST_DIR}/../cmake/CUDAArch.cmake)
 
-ccad_record()
+ccad_record_and_inject(hello)
 
 project(hello CUDA)
-
-ccad_apply()
 
 ccad_test()
 
@@ -15,7 +13,6 @@ add_executable(${PROJECT_NAME} src/main.cu)
 # Add the static library if building this inner project standalone. I.e. flamegpu examples
 if (NOT TARGET ccad)
     get_filename_component(ROOT ${CMAKE_CURRENT_LIST_DIR}/.. REALPATH)
-    message("${ROOT}")
     add_subdirectory("${ROOT}/src" "${PROJECT_BINARY_DIR}/ccad")
 endif()
 
