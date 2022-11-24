@@ -153,9 +153,26 @@ function(ccad_get_minimum_cuda_architecture)
     if(DEFINED CMAKE_CUDA_ARCHITECTURES)
         # If the list contains all, all-major or native, do something.
         if("native" IN_LIST CMAKE_CUDA_ARCHITECTURES)
-            message("@todo handle oldest arch from native ${CMAKE_CUDA_ARCHITECTURES}")
+            # If it's native, we would need to exeucte some CUDA code to detect this. For now set -1.
+            set(ccad_minimum_cuda_architecture -1) 
         elseif("all-major" IN_LIST CMAKE_CUDA_ARCHITECTURES OR "all" IN_LIST CMAKE_CUDA_ARCHITECTURES)
-            message("@todo handle oldest arch from all/all-major ${CMAKE_CUDA_ARCHITECTURES}")
+            # Query NVCC for the acceptable SM values. 
+            if(NOT DEFINED SUPPORTED_CUDA_ARCHITECTURES_NVCC)
+                execute_process(COMMAND ${CUDAToolkit_NVCC_EXECUTABLE} "--help" OUTPUT_VARIABLE NVCC_HELP_STR ERROR_VARIABLE NVCC_HELP_STR)
+                # Match all comptue_XX or sm_XXs
+                string(REGEX MATCHALL "'(sm|compute)_[0-9]+'" SUPPORTED_CUDA_ARCHITECTURES_NVCC "${NVCC_HELP_STR}" )
+                # Strip just the numeric component
+                string(REGEX REPLACE "'(sm|compute)_([0-9]+)'" "\\2" SUPPORTED_CUDA_ARCHITECTURES_NVCC "${SUPPORTED_CUDA_ARCHITECTURES_NVCC}" )
+                # Remove dupes and sort to build the correct list of supported CUDA_ARCH.
+                list(REMOVE_DUPLICATES SUPPORTED_CUDA_ARCHITECTURES_NVCC)
+                list(REMOVE_ITEM SUPPORTED_CUDA_ARCHITECTURES_NVCC "")
+                list(SORT SUPPORTED_CUDA_ARCHITECTURES_NVCC)
+                # Store the supported arch's once and only once. This could be a cache  var given the cuda compiler should not be able to change without clearing th cache?
+                set(SUPPORTED_CUDA_ARCHITECTURES_NVCC ${SUPPORTED_CUDA_ARCHITECTURES_NVCC} PARENT_SCOPE)
+            endif()
+            # For both all and all-major, the lowest arch should be the lowest supported. This is true for CUDA <= 11.8 atleast.
+            list(GET SUPPORTED_CUDA_ARCHITECTURES_NVCC 0 lowest)
+            set(ccad_minimum_cuda_architecture ${lowest})
         else()
             # Otherwise it should just be a list of one or more <sm>/<sm>-real/<sm-virtual>
             # Copy the list
@@ -166,14 +183,15 @@ function(ccad_get_minimum_cuda_architecture)
             list(SORT archs COMPARE NATURAL ORDER ASCENDING)
             # Get the first element
             list(GET archs 0 lowest)
-            # Set the lowest arch to a parent scoped cache variable which can be accessed externally.
-            # @todo - use an argument instead, so users can put it where they want?
-            set(ccad_minimum_cuda_architecture ${lowest} PARENT_SCOPE)
+            # Set the value for later returning
+            set(ccad_minimum_cuda_architecture ${lowest})
         endif()
+        # Promote the result to the parent scope
+        # @todo - use an argument instead, so users can put it where they want?
+        set(ccad_minimum_cuda_architecture ${ccad_minimum_cuda_architecture} PARENT_SCOPE)
     else()
         message(FATAL_ERROR "ccad_get_minimum_cuda_architecture: CMAKE_CUDA_ARCHITECTURES is not set / is empty")
     endif()
-
 endfunction()
 
 function(ccad_test)
