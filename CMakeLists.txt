@@ -31,6 +31,11 @@ ccad_test()
 
 # # Add the library project
 add_subdirectory(src)
+include(CMakeDependentOption)
+# CMake option to control building of the hello example, so this can be included in other repos with the same target name? 
+cmake_dependent_option(CCAD_BUILD_HELLO "Enable building examples/boids_bruteforce" OFF "${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}" OFF)
 
-# # add the binary project
-add_subdirectory(hello)
+if(CCAD_BUILD_HELLO)
+    # add the binary project
+    add_subdirectory(hello)
+endif()
