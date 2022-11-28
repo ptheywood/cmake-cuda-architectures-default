@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.18...3.25 FATAL_ERROR)
 
-include(${CMAKE_CURRENT_LIST_DIR}/../cmake/CUDAArch.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../cmake/CUDAArchitectures.cmake)
 
-ccad_record_and_inject(hello)
+ccad_init_cuda_architectures(PROJECT hello NO_VALIDATE_ARCHITECTURES)
 
 project(hello CUDA)
 
-ccad_test()
+# Print the current value of CMAKE_CUDA_ARCHITECTURES as a test
+message(STATUS "${CMAKE_CURRENT_LIST_FILE} :: ${CMAKE_CUDA_ARCHITECTURES}")
 
 add_executable(${PROJECT_NAME} src/main.cu)
 

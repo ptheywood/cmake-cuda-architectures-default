@@ -1,48 +1,101 @@
+#[[[
+# Handle CMAKE_CUDA_ARCHITECTURES gracefully, allowing library CMakeLists.txt to provide a sane default if not user-specified
+#
+# CMAKE_CUDA_ARCHITECTURES is a CMake >= 3.18 feature which controls code generation options for CUDA device code.
+# The initial value can be set using teh CUDAARCHS environment variable, or the CMake Cache varaibel CMAKE_CUDA_ARCHITECTURES.
+# This allows users to provide their chosen value.
+# When the CUDA language is enabled, by a project() or enable_language() command, if the cache variable is empty then CMake will set the cache variable to the default used by the compiler. I.e. 52 for CUDA 11.x.
+# However, it is then impossible to detect if the user provided this value, or if CMake did, preventing a library from setting a default, without executing CMake prior to the first project command, which is unusual.
+#
+#]]
 include_guard(GLOBAL)
 
-function(ccad_record)
+#[[[
+# Initialise the CMAKE_CUDA_ARCHITECTURES from the environment, CACHE or a sane programatic default
+#
+# Call this method prior to the first (or all) project commands, to store the initial state of CMAKE_CUDA_ARCHITECTURES/CUDAARCHS for later post processing.
+# Optionally specify a project to inject a call to  ccad_set_cuda_architectures in to, to post-process the stored value or set a library-provided default.
+#
+# :keyword PROJECT: Optional project name to inject CMAKE_CUDA_ARCHITECTURES setting into. Otherwise call ccad_set_cuda_architectures manually after the project command or enable_lanague(CUDA).
+# :type PROJECT: string
+# :keyword NO_VALIDATE_ARCHITECTURES: Do not validate the passed arguments against nvcc --help output
+# :type NO_VALIDATE_ARCHITECTURES: boolean
+#]]
+function(ccad_init_cuda_architectures)
+    # Handle argument parsing
+    cmake_parse_arguments(CICA
+        "NO_VALIDATE_ARCHITECTURES"
+        "PROJECT"
+        ""
+        ${ARGN}
+    )
     # Detect if there are user provided architectures or not, form the cache or environment
-    set(arch_from_env_or_cache FALSE)
+    set(ccad_ARCH_FROM_ENV_OR_CACHE FALSE)
     if(DEFINED CMAKE_CUDA_ARCHITECTURES OR DEFINED ENV{CUDAARCHS})
-        set(arch_from_env_or_cache TRUE)
+        set(ccad_ARCH_FROM_ENV_OR_CACHE TRUE)
     endif()
     # promote the stored value to parent(file) scope for later use. This might need to become internal cache, but hopefully not.
-    set(arch_from_env_or_cache ${arch_from_env_or_cache} PARENT_SCOPE)
-endfunction()
-
-
-function(ccad_record_and_inject project_name)
-# @todo project from argument as optional and combine with the above? 
-
-    # Detect if there are user provided architectures or not, form the cache or environment
-    set(arch_from_env_or_cache FALSE)
-    if(DEFINED CMAKE_CUDA_ARCHITECTURES OR DEFINED ENV{CUDAARCHS})
-        set(arch_from_env_or_cache TRUE)
+    set(ccad_ARCH_FROM_ENV_OR_CACHE ${ccad_ARCH_FROM_ENV_OR_CACHE} PARENT_SCOPE)
+    # If the user does not want architecture validation to occur, set a parent scoped variable to be checked later.
+    if(CICA_NO_VALIDATE_ARCHITECTURES)
+        # If a project was also specified, append to a list and promote to the parent scope
+        if(CICA_PROJECT)
+            list(APPEND ccad_NO_VALIDATE_ARCHITECTURES_PROJECTS ${CICA_PROJECT})
+            set(ccad_NO_VALIDATE_ARCHITECTURES_PROJECTS ${ccad_NO_VALIDATE_ARCHITECTURES_PROJECTS} PARENT_SCOPE)
+        else()
+            # Otherwise just set a parent scoped variable
+            set(ccad_NO_VALIDATE_ARCHITECTURES ${CICA_NO_VALIDATE_ARCHITECTURES} PARENT_SCOPE)
+        endif()
     endif()
-    # promote the stored value to parent(file) scope for later use. This might need to become internal cache, but hopefully not.
-    set(arch_from_env_or_cache ${arch_from_env_or_cache} PARENT_SCOPE)
-
-    # Inject code into the project() comamnd for hte specified project, to run after CUDA has been detected (so we can set teh defaults correctly)
-    # Append 
-    set(CMAKE_PROJECT_${project_name}_INCLUDE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/CUDAArch_callback.cmake" PARENT_SCOPE)
-
+    # If a project name was provided, inject code into the PROJECT command. Users must call ccad_set_cuda_architectures otherwise
+    if(CICA_PROJECT)
+        set(CMAKE_PROJECT_${CICA_PROJECT}_INCLUDE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/CUDAArchitecturesProjectInclude.cmake" PARENT_SCOPE)
+    endif()
 endfunction()
 
-# @todo - make validation default but optional
-function(ccad_apply)
-    # This function requires that the CUDA language is enabled on the current project. 
+#[[[
+# Set the CMAKE_CUDA_ARCHITECTURES value to the environment/cache provided value, or generate the CUDA version appropraite default.
+#
+# Set teh CMAKE_CUDA_ARCHITECTURES cache variable to a user priovided or a library-arpropriate default.
+# If the CUDAARCHS environment variable, or CMAKE_CUDA_ARCHITECTURES cache variable did not specify a value before the CUDA lanagugea was enabled,
+# build an appropraite default option, based on the CMake and NVCC verison.
+# Effectively all-major (-real for all major achitectures, and PTX for the most reent.)
+#
+# If the user provided a value, it will be validated against nvcc --help unless NO_VALIDATE_ARCHITECTURES is set, or was set in a previous call to ccad_init_cuda_architectures without a PROJECT.
+#
+# CUDA must be enabled as a language prior to this method being called.
+#
+# :keyword NO_VALIDATE_ARCHITECTURES: Do not validate the passed arguments against nvcc --help output
+# :type NO_VALIDATE_ARCHITECTURES: boolean
+#]]
+function(ccad_set_cuda_architectures)
+    # Handle argument parsing
+    cmake_parse_arguments(CSCA
+        "NO_VALIDATE_ARCHITECTURES"
+        ""
+        ""
+        ${ARGN}
+    )
+    # This function requires that the CUDA language is enabled on the current project.
     if(NOT CMAKE_CUDA_COMPILER_LOADED)
-        # @todo different error if called manually or by injected cmake? 
-        message(FATAL_ERROR
-            "  ccad_apply only works if CUDA is an enabled language on the current project\n"
-            "  Please use project(...LANGUAGES CUDA), or enabled_language(CUDA)")
+        # If in the inkected project code, give a different error message
+        if(DEFINED ccad_IN_PROJECT_INCLUDE AND ccad_IN_PROJECT_INCLUDE)
+            message(FATAL_ERROR
+            "  ${CMAKE_CURRENT_FUNCTION} requires the CUDA lanaguage to be enabled\n"
+            "  Please either:\n"
+            "  *  use project(<project-name> LANGUAGES CUDA)\n"
+            "  *  call ccad_init_cuda_architectures() without the PROJECT argument, and explcitly call ${CMAKE_CURRENT_FUNCTION}() after enable_language(CUDA).")
+        else()
+            # not in project injection, so only suggest enabled
+            message(FATAL_ERROR
+            "  ${CMAKE_CURRENT_FUNCTION} requires the CUDA language to be enabled.\n"
+            "  Please call enable_language(CUDA) prior to ${CMAKE_CURRENT_FUNCTION}()")
+        endif()
+
     endif()
-
-
-    find_package(CUDAToolkit REQUIRED)
     # Query NVCC for the acceptable SM values, this is used in multiple places
     if(NOT DEFINED SUPPORTED_CUDA_ARCHITECTURES_NVCC)
-        execute_process(COMMAND ${CUDAToolkit_NVCC_EXECUTABLE} "--help" OUTPUT_VARIABLE NVCC_HELP_STR ERROR_VARIABLE NVCC_HELP_STR)
+        execute_process(COMMAND ${CMAKE_CUDA_COMPILER} "--help" OUTPUT_VARIABLE NVCC_HELP_STR ERROR_VARIABLE NVCC_HELP_STR)
         # Match all comptue_XX or sm_XXs
         string(REGEX MATCHALL "'(sm|compute)_[0-9]+'" SUPPORTED_CUDA_ARCHITECTURES_NVCC "${NVCC_HELP_STR}" )
         # Strip just the numeric component
@@ -55,9 +108,11 @@ function(ccad_apply)
         set(SUPPORTED_CUDA_ARCHITECTURES_NVCC ${SUPPORTED_CUDA_ARCHITECTURES_NVCC} PARENT_SCOPE)
     endif()
     list(LENGTH SUPPORTED_CUDA_ARCHITECTURES_NVCC SUPPORTED_CUDA_ARCHITECTURES_NVCC_COUNT)
-
-    # If we already have a cuda architetures value, validate it as CMake doesn't.
-    if(arch_from_env_or_cache AND NOT CMAKE_CUDA_ARCHITECTURES STREQUAL "")
+    # If we already have a cuda architectures value, validate it as CMake doesn't on its own. Unless the caller asked us not to.
+    if(ccad_ARCH_FROM_ENV_OR_CACHE AND NOT CMAKE_CUDA_ARCHITECTURES STREQUAL ""
+        AND NOT CSCA_NO_VALIDATE_ARCHITECTURES
+        AND NOT ccad_NO_VALIDATE_ARCHITECTURES
+        AND (DEFINED PROJECT_NAME AND NOT ${PROJECT_NAME} IN_LIST ccad_NO_VALIDATE_ARCHITECTURES_PROJECTS))
         # Get the number or architectures specified
         list(LENGTH CMAKE_CUDA_ARCHITECTURES arch_count)
         # Prep a bool to track if a single special value is being used or not
@@ -110,7 +165,6 @@ function(ccad_apply)
             endif()
             set(using_keyword_arch TRUE)
         endif()
-
         # Cmake 3.18+ expects a list of 1 or more <sm>, <sm>-real or <sm>-virtual.
         # CMake isn't aware of the exact SMS supported by the CUDA version afiak, but we have already queired nvcc for this (once and only once)
         # If nvcc parsing worked and a single keyword option is not being used, attempt the validation:
@@ -132,7 +186,6 @@ function(ccad_apply)
         # If no errors yet, we're good to go.
         return()
     endif()
-
     # If we're using CMake >= 3.23, we can just use all-major, though we then have to find the minimum a different way?
     if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.23")
         set(CMAKE_CUDA_ARCHITECTURES "all-major")
@@ -158,6 +211,10 @@ function(ccad_apply)
             if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.8)
                 list(APPEND default_archs "90")
             endif()
+            message(AUTHOR_WARNING
+                "  ${CMAKE_CURRENT_FUNCTION} failed to parse NVCC --help output for default architecture generation\n"
+                "  Using ${default_archs} based on CUDA 11.0 to 11.8."
+            )
         endif()
         # We actually want real for each arch, then virtual for the final, but only for library-provided values, to only embed one arch worth of ptx.
         # So grab the last element of the list
@@ -177,18 +234,30 @@ function(ccad_apply)
     set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}" CACHE STRING "CUDA architectures" FORCE)
 endfunction()
 
-function(ccad_get_minimum_cuda_architecture)
-    # assuming CMAKE_CUDA_ARCHITECTURES is set, extract the oldest architecture from it? - This is not required, but provides much more helpful error messages (for downstream users). It might not be possible with all-major, all & native.
-
+#[[[
+# Get the minimum CUDA Architecture from the current CMAKE_CUDA_ARCHITECTURES value if possible
+#
+# Gets the minimum CUDA architectuyre from teh current value of CMAKE_CUDA_ARCHITECTURES if possible, storing the result in the pass-by-reference return value
+# Supports CMAKE_CUDA_ARCHITECTURE values including integers, -real post-fixed integers, -virtual post-fixed integers, all-major and all.
+# Does not support native, instead returning -1.
+# all or all-major are supported by querying nvcc --help to detect the minimum built for.
+#
+# CUDA must be enabled as a language prior to this method being called, and CMAKE_CUDA_ARCHITECTURES must be defined and non-empty
+#
+# :param minimum_architecture: the minimum architecture set in CMAKE_CUDA_ARCHITECTURES
+# :type NO_VALIDATE_ARCHITECTURES: integer
+#]]
+function(ccad_get_minimum_cuda_architecture minimum_architecture)
     if(DEFINED CMAKE_CUDA_ARCHITECTURES)
-        # If the list contains all, all-major or native, do something.
+        # Cannot deal with native gracefully
         if("native" IN_LIST CMAKE_CUDA_ARCHITECTURES)
             # If it's native, we would need to exeucte some CUDA code to detect this. For now set -1.
-            set(ccad_minimum_cuda_architecture -1) 
+            set(ccad_minimum_cuda_architecture -1)
+        # if all/all-major is specified, detect via nvcc --help. It must be the only option (CMake doens't validate this and generates bad gencodes otherwise)
         elseif("all-major" IN_LIST CMAKE_CUDA_ARCHITECTURES OR "all" IN_LIST CMAKE_CUDA_ARCHITECTURES)
-            # Query NVCC for the acceptable SM values. 
+            # Query NVCC for the acceptable SM values.
             if(NOT DEFINED SUPPORTED_CUDA_ARCHITECTURES_NVCC)
-                execute_process(COMMAND ${CUDAToolkit_NVCC_EXECUTABLE} "--help" OUTPUT_VARIABLE NVCC_HELP_STR ERROR_VARIABLE NVCC_HELP_STR)
+                execute_process(COMMAND ${CMAKE_CUDA_COMPILER} "--help" OUTPUT_VARIABLE NVCC_HELP_STR ERROR_VARIABLE NVCC_HELP_STR)
                 # Match all comptue_XX or sm_XXs
                 string(REGEX MATCHALL "'(sm|compute)_[0-9]+'" SUPPORTED_CUDA_ARCHITECTURES_NVCC "${NVCC_HELP_STR}" )
                 # Strip just the numeric component
@@ -222,16 +291,9 @@ function(ccad_get_minimum_cuda_architecture)
             # Set the value for later returning
             set(ccad_minimum_cuda_architecture ${lowest})
         endif()
-        # Promote the result to the parent scope
-        # @todo - use an argument instead, so users can put it where they want?
-        set(ccad_minimum_cuda_architecture ${ccad_minimum_cuda_architecture} PARENT_SCOPE)
+        # Set the return value as required, effectively pass by reference.
+        set(${minimum_architecture} ${ccad_minimum_cuda_architecture} PARENT_SCOPE)
     else()
-        message(FATAL_ERROR "ccad_get_minimum_cuda_architecture: CMAKE_CUDA_ARCHITECTURES is not set / is empty")
+        message(FATAL_ERROR "${CMAKE_CURRENT_FUNCTION}: CMAKE_CUDA_ARCHITECTURES is not set or is empty")
     endif()
-
-endfunction()
-
-function(ccad_test)
-    # Print out the current value, as an easy way to check during cmake development.
-    message(STATUS "${CMAKE_CURRENT_LIST_FILE} :: ${CMAKE_CUDA_ARCHITECTURES}")
 endfunction()
