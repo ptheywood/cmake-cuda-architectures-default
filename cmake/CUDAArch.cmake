@@ -135,7 +135,7 @@ function(ccad_apply)
 
     # If we're using CMake >= 3.23, we can just use all-major, though we then have to find the minimum a different way?
     if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.23")
-        set(CMAKE_CUDA_ARCHITECTURES "all-major" PARENT_SCOPE)
+        set(CMAKE_CUDA_ARCHITECTURES "all-major")
     else()
         # For CMake < 3.23, we have to make our own all-major equivalent.
         # If we have nvcc help outut, we can generate this from all the elements that end with a 0 (and the first element if it does not.)
@@ -167,10 +167,14 @@ function(ccad_apply)
         # add the -virtual version of the final element
         list(APPEND default_archs "${final}-virtual")
         # Set the value
-        set(CMAKE_CUDA_ARCHITECTURES ${default_archs} PARENT_SCOPE)
+        set(CMAKE_CUDA_ARCHITECTURES ${default_archs})
         #unset local vars
         unset(default_archs)
     endif()
+    # Promote the value to the parent's scope, where it is needed on the first invokation (might be fine with cache, but just incase)
+    set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}" PARENT_SCOPE)
+    # Promote the value to the cache for reconfigure persistence, as the enable_language sets it on the cache
+    set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}" CACHE STRING "CUDA architectures" FORCE)
 endfunction()
 
 function(ccad_get_minimum_cuda_architecture)
