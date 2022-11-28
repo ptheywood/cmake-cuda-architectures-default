@@ -38,7 +38,6 @@ if ("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}")
 else()
   set(CCAD_PROJECT_IS_TOP_LEVEL OFF)
 endif()
-message("CCAD_PROJECT_IS_TOP_LEVEL ${CCAD_PROJECT_IS_TOP_LEVEL}")
 
 # CMake option to control building of the hello example, so this can be included in other repos with the same target name? 
 cmake_dependent_option(CCAD_BUILD_HELLO "Enable building examples/boids_bruteforce" OFF "CCAD_PROJECT_IS_TOP_LEVEL" OFF)
