@@ -19,6 +19,13 @@ set(SRC
 
 add_library(${PROJECT_NAME} STATIC ${SRC})
 
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+target_compile_features(${PROJECT_NAME} PUBLIC cuda_std_17)
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_EXTENSIONS OFF)
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD_REQUIRED ON)
+set_target_properties(${PROJECT_NAME} PROPERTIES CUDA_STANDARD_RCXX_STANDARD_REQUIRED ON)
+
 unset(SRC)
 
 # Get the oldest arch, written to ${ccad_minimum_cuda_architecture}

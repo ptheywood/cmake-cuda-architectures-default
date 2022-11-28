@@ -19,11 +19,11 @@ if(CMAKE_CUDA_COMPILER)
 endif()
 
 # Exit if older CUDA.
-set(MIN_CUDA_VER "11.0")
-if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS MIN_CUDA_VER)
-    message(FATAL_ERROR "CUDA >= ${MIN_CUDA_VER} required. ${CMAKE_CUDA_COMPILER_VERSION} found")
-endif()
-unset(MIN_CUDA_VER)
+# set(MIN_CUDA_VER "11.0")
+# if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS MIN_CUDA_VER)
+#     message(FATAL_ERROR "CUDA >= ${MIN_CUDA_VER} required. ${CMAKE_CUDA_COMPILER_VERSION} found")
+# endif()
+# unset(MIN_CUDA_VER)
 
 ccad_apply()
 
