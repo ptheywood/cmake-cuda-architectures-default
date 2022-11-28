@@ -32,8 +32,16 @@ ccad_test()
 # # Add the library project
 add_subdirectory(src)
 include(CMakeDependentOption)
+# Detect if this is the top-level project or if it has been included by add_subdirectory. PROJECT_IS_TOP_LEVEL requires CMake 3.21
+if ("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}")
+  set(CCAD_PROJECT_IS_TOP_LEVEL ON)
+else()
+  set(CCAD_PROJECT_IS_TOP_LEVEL OFF)
+endif()
+message("CCAD_PROJECT_IS_TOP_LEVEL ${CCAD_PROJECT_IS_TOP_LEVEL}")
+
 # CMake option to control building of the hello example, so this can be included in other repos with the same target name? 
-cmake_dependent_option(CCAD_BUILD_HELLO "Enable building examples/boids_bruteforce" OFF "${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}" OFF)
+cmake_dependent_option(CCAD_BUILD_HELLO "Enable building examples/boids_bruteforce" OFF "CCAD_PROJECT_IS_TOP_LEVEL" OFF)
 
 if(CCAD_BUILD_HELLO)
     # add the binary project
